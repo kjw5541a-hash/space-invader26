@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+<title>Space Invader</title>
+<script src="https://cdn.jsdelivr.net/npm/phaser@3.80.1/dist/phaser.min.js"></script>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html, body { width:100%; height:100%; background:#050510; overflow:hidden; touch-action:none; overscroll-behavior:none; font-family: -apple-system, 'Segoe UI', sans-serif; }
+  #game-wrap { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; }
+  #game-wrap canvas { border:1px solid #1a1a3a; box-shadow:0 0 30px #00ffff22; }
+  #touch-ui { position:fixed; left:0; right:0; bottom:0; display:flex; justify-content:space-between; padding:0 16px calc(18px + env(safe-area-inset-bottom)); pointer-events:none; z-index:10; }
+  .tbtn { pointer-events:auto; width:96px; height:96px; border-radius:50%; border:2px solid #00ffff; background:rgba(0,255,255,0.08); color:#00ffff; font-size:40px; display:flex; align-items:center; justify-content:center; user-select:none; -webkit-user-select:none; -webkit-tap-highlight-color:transparent; backdrop-filter: blur(2px); }
+  .tbtn:active, .tbtn.on { background:rgba(0,255,255,0.28); box-shadow:0 0 18px #00ffff; }
+  #btn-right { border-color:#ff4dff; color:#ff4dff; background:rgba(255,77,255,0.08); }
+  #btn-right:active, #btn-right.on { background:rgba(255,77,255,0.28); box-shadow:0 0 18px #ff4dff; }
+  @media (hover:hover) and (pointer:fine) { #touch-ui { display:none; } }
+</style>
+</head>
+<body>
+<div id="game-wrap"><div id="game"></div></div>
+<div id="touch-ui">
+  <div id="btn-left" class="tbtn">◀</div>
+  <div id="btn-right" class="tbtn">▶</div>
+</div>
+<script>
+  window.__move = { left:false, right:false };
+  function bindHold(el, key) {
+    const on = (e) => { e.preventDefault(); window.__move[key] = true; el.classList.add('on'); };
+    const off = (e) => { e.preventDefault(); window.__move[key] = false; el.classList.remove('on'); };
+    el.addEventListener('pointerdown', on);
+    el.addEventListener('pointerup', off);
+    el.addEventListener('pointercancel', off);
+    el.addEventListener('pointerleave', off);
+    el.addEventListener('contextmenu', (e) => e.preventDefault());
+  }
+  bindHold(document.getElementById('btn-left'), 'left');
+  bindHold(document.getElementById('btn-right'), 'right');
+</script>
+<script src="./game.js"></script>
+</body>
+</html>

@@ -1,0 +1,10 @@
+# Godot 4
+.godot/
+*.tmp
+*.log
+
+# macOS
+.DS_Store
+
+# local test tools output (regenerable)
+/tools/__pycache__/
