@@ -46,6 +46,8 @@ var boss_pattern := -1
 var boss_ptime := 0.0
 var boss_pinterval := 3.6
 var boss_bspeed := 220.0
+var boss_tx := 0.0
+var boss_tt := 0.0
 var spiral_on := false
 var spiral_t := 0.0
 var spiral_emit := 0.0
@@ -71,9 +73,9 @@ var ui_font: Font = null
 var sfx_streams := {}
 var sfx_pool: Array = []
 var sfx_vol := {
-	"shoot": -12.0, "enemy_shoot": -22.0, "explosion": -10.0,
-	"hit": -6.0, "wave": -8.0, "boss": -7.0, "gameover": -5.0, "tick": -11.0,
-	"bossdown": -9.0, "boss_shoot": -12.0, "boss_hit": -10.0,
+	"shoot": -16.0, "enemy_shoot": -26.0, "explosion": -14.0,
+	"hit": -10.0, "wave": -12.0, "boss": -11.0, "gameover": -9.0, "tick": -15.0,
+	"bossdown": -13.0, "boss_shoot": -16.0, "boss_hit": -14.0,
 }
 var bgm_stage: AudioStreamPlayer = null
 var bgm_boss: AudioStreamPlayer = null
@@ -423,10 +425,10 @@ func _build_ui() -> void:
 	msg_label.add_theme_constant_override("outline_size", 8)
 	layer.add_child(msg_label)
 
-	var left_btn := _mk_button(layer, "◀", Vector2(16, 590), Color(0, 1, 1))
+	var left_btn := _mk_button(layer, "◀", Vector2(8, 590), Color(0, 1, 1), Vector2(228, 104))
 	left_btn.button_down.connect(func() -> void: touch_left = true)
 	left_btn.button_up.connect(func() -> void: touch_left = false)
-	var right_btn := _mk_button(layer, "▶", Vector2(360, 590), Color(1, 0.3, 1))
+	var right_btn := _mk_button(layer, "▶", Vector2(244, 590), Color(1, 0.3, 1), Vector2(228, 104))
 	right_btn.button_down.connect(func() -> void: touch_right = true)
 	right_btn.button_up.connect(func() -> void: touch_right = false)
 
@@ -444,13 +446,13 @@ func _mk_label(layer: CanvasLayer, pos: Vector2, fs: int, col: Color) -> Label:
 	return l
 
 
-func _mk_button(layer: CanvasLayer, txt: String, pos: Vector2, col: Color) -> Button:
+func _mk_button(layer: CanvasLayer, txt: String, pos: Vector2, col: Color, sz: Vector2 = Vector2(104, 104)) -> Button:
 	var b := Button.new()
 	if ui_font:
 		b.add_theme_font_override("font", ui_font)
 	b.text = txt
 	b.position = pos
-	b.size = Vector2(104, 104)
+	b.size = sz
 	b.focus_mode = Control.FOCUS_NONE
 	b.add_theme_font_size_override("font_size", 42)
 	b.add_theme_color_override("font_color", col)
@@ -560,7 +562,6 @@ func _on_skill_pick(idx: int) -> void:
 	skill_layer.visible = false
 	skill_open = false
 	get_tree().paused = false
-	_sfx("wave")
 	next_wave_cd = 0.9
 
 
@@ -776,6 +777,8 @@ func _spawn_boss() -> void:
 	boss = b
 	boss_pattern = -1
 	boss_ptime = 2.0
+	boss_tx = 0.0
+	boss_tt = 0.0
 	boss_pinterval = maxf(2.0, 3.8 - wave * 0.15)
 	boss_bspeed = 200.0 + wave * 12.0
 	if boss_bar:
@@ -1232,9 +1235,17 @@ func _physics_process(delta: float) -> void:
 	if boss == null or not is_instance_valid(boss):
 		_fire_tick_accum(delta)
 	else:
-		boss.position.x = sin(elapsed * 1.4) * 150.0
-		# 물리 뱅킹: 횡속도에 비례해 롤+요를 줘서 기동과 자세가 일치
-		var bv := 150.0 * 1.4 * cos(elapsed * 1.4)
+		# 랜덤 기동: 1.6~3.2초마다 새 목표 x를 잡고 웨이브 비례 속도로 접근 + 상하 bob
+		boss_tt -= delta
+		if boss_tt <= 0.0:
+			boss_tt = randf_range(1.6, 3.2)
+			boss_tx = randf_range(-150.0, 150.0)
+		var bx0 := boss.position.x
+		boss.position.x = move_toward(boss.position.x, boss_tx, (90.0 + wave * 10.0) * delta)
+		boss.position.x += sin(elapsed * 2.3 + float(wave)) * 20.0 * delta
+		boss.position.z = -250.0 + sin(elapsed * 0.9) * 30.0
+		# 물리 뱅킹: 실제 횡속도에 비례해 롤+요를 줘서 기동과 자세가 일치
+		var bv := (boss.position.x - bx0) / maxf(delta, 0.0001)
 		boss.rotation.z = lerpf(boss.rotation.z, clampf(-bv / 900.0, -0.25, 0.25), delta * 4.0)
 		boss.rotation.y = lerpf(boss.rotation.y, clampf(bv / 2100.0, -0.1, 0.1), delta * 4.0)
 		if boss_core_mat:
@@ -1242,7 +1253,11 @@ func _physics_process(delta: float) -> void:
 		boss_ptime += delta
 		if boss_ptime >= boss_pinterval:
 			boss_ptime = 0.0
-			boss_pattern = (boss_pattern + 1) % 6
+			# 탄막 순서 랜덤 (직전 패턴 제외)
+			var np := randi() % 6
+			while np == boss_pattern:
+				np = randi() % 6
+			boss_pattern = np
 			_run_boss_pattern()
 		_boss_continuous(delta)
 		if boss_bar and is_instance_valid(boss):
