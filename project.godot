@@ -14,7 +14,7 @@ config/name="Space Invader"
 config/description="Neon 2.5D Galaga-like. Auto fire, stages, multi-pattern boss."
 run/main_scene="res://main3d.tscn"
 config/features=PackedStringArray("4.7", "GL Compatibility")
-config/icon="res://icon.svg"
+config/icon="res://space.png"
 
 [display]
 
