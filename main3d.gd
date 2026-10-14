@@ -13,6 +13,7 @@ const EDGE := 216.0
 const INVADE_Z := 240.0
 const CAM_POS := Vector3(0, 470, 470)
 const CAM_LOOK := Vector3(0, 0, -20)
+const TOUCH_SPEED_FACTOR := 0.55
 
 var score := 0
 var wave := 0
@@ -1249,7 +1250,11 @@ func _physics_process(delta: float) -> void:
 		if Input.is_action_pressed("ui_right") or Input.is_key_pressed(KEY_RIGHT) or Input.is_key_pressed(KEY_D) or touch_right:
 			dir += 1.0
 		move_dir = dir
-		player.position.x = clampf(player.position.x + dir * player_speed * delta, -PLAYER_X_LIM, PLAYER_X_LIM)
+		# 터치 버튼은 미세 컨트롤용으로 감속 (키보드는 전속)
+		var spd := player_speed
+		if touch_left or touch_right:
+			spd *= TOUCH_SPEED_FACTOR
+		player.position.x = clampf(player.position.x + dir * spd * delta, -PLAYER_X_LIM, PLAYER_X_LIM)
 		player.rotation.z = lerpf(player.rotation.z, -dir * 0.3, delta * 8.0)
 		if player.has_meta("flames"):
 			var fl: Array = player.get_meta("flames")
