@@ -146,6 +146,9 @@ var skill_open := false
 var skill_layer: CanvasLayer = null
 var skill_title: Label = null
 var skill_btns: Array = []
+var started := false
+var title_layer: CanvasLayer = null
+var title_hint: Label = null
 
 var star_mm: MultiMesh = null
 var star_data: Array = []
@@ -161,8 +164,7 @@ func _ready() -> void:
 	_build_ui()
 	_build_skill_ui()
 	_build_player()
-	next_wave()
-	_play_want_bgm()
+	_build_title()
 
 
 # ---------- 월드/카메라 ----------
@@ -653,6 +655,47 @@ func _shield_center() -> Vector3:
 	return player.position + Vector3(0, 0, -20)
 
 
+# ---------- 타이틀 (시작 전 표지 + 터치 시작) ----------
+
+func _build_title() -> void:
+	title_layer = CanvasLayer.new()
+	title_layer.layer = 20
+	add_child(title_layer)
+	var tex := load("res://assets/front.jpg") as Texture2D
+	var rect := TextureRect.new()
+	rect.set_anchors_preset(Control.PRESET_FULL_RECT)
+	rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	if tex:
+		rect.texture = tex
+	title_layer.add_child(rect)
+	title_hint = Label.new()
+	if ui_font:
+		title_hint.add_theme_font_override("font", ui_font)
+	title_hint.text = "터치하여 시작"
+	title_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title_hint.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
+	title_hint.position = Vector2(40, 560)
+	title_hint.size = Vector2(400, 60)
+	title_hint.add_theme_font_size_override("font_size", 30)
+	title_hint.add_theme_color_override("font_color", Color(0, 1, 1))
+	title_hint.add_theme_color_override("font_outline_color", Color.BLACK)
+	title_hint.add_theme_constant_override("outline_size", 8)
+	title_layer.add_child(title_hint)
+
+
+func _start_game() -> void:
+	if started:
+		return
+	started = true
+	if title_layer and is_instance_valid(title_layer):
+		title_layer.queue_free()
+	title_layer = null
+	title_hint = null
+	next_wave()
+
+
 func next_wave() -> void:
 	wave += 1
 	_refresh_hud()
@@ -1100,8 +1143,6 @@ func _explode(p: Vector2, color: Color, n: int) -> void:
 
 func _input(event: InputEvent) -> void:
 	# _unhandled_input은 UI 버튼에 먹히므로, 모든 입력에서 BGM 강제 시작
-	if _bgm_unlocked:
-		return
 	var pressed := false
 	if event is InputEventMouseButton and event.pressed:
 		pressed = true
@@ -1109,9 +1150,13 @@ func _input(event: InputEvent) -> void:
 		pressed = true
 	elif event is InputEventKey and event.pressed:
 		pressed = true
-	if pressed:
+	if not pressed:
+		return
+	if not _bgm_unlocked:
 		_bgm_unlocked = true
 		_play_want_bgm(true)
+	if not started:
+		_start_game()
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -1170,6 +1215,11 @@ func _physics_process(delta: float) -> void:
 			shake = lerpf(shake, 0.0, delta * 7.0)
 		elif cam.position != CAM_POS:
 			cam.position = CAM_POS
+
+	if not started:
+		if title_hint and is_instance_valid(title_hint):
+			title_hint.modulate.a = 0.55 + 0.45 * sin(elapsed * 4.0)
+		return
 
 	if game_over:
 		return
