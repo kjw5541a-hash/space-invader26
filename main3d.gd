@@ -143,7 +143,7 @@ var aoe_cd := 0.0
 const AOE_BASE_CD := 2.0
 const AOE_RADIUS := 110.0
 const SHIELD_R := 34.0
-var shield_dome: MeshInstance3D = null
+var shield_mesh: MeshInstance3D = null
 var skill_open := false
 var skill_layer: CanvasLayer = null
 var skill_title: Label = null
@@ -652,24 +652,47 @@ func _build_player() -> void:
 
 
 func _build_shield() -> void:
-	# 비행기 앞 반투명 반구 방어막: 적 탄을 대신 맞고 차지 소모
-	var mesh := SphereMesh.new()
-	mesh.radius = SHIELD_R
-	mesh.height = SHIELD_R * 2.0
-	mesh.is_hemisphere = true
-	mesh.radial_segments = 16
-	mesh.rings = 8
-	shield_dome = MeshInstance3D.new()
-	shield_dome.mesh = mesh
-	shield_dome.material_override = _neon_trans(Color(0.3, 0.9, 1), 0.25)
-	shield_dome.position = Vector3(0, 0, -20)
-	shield_dome.visible = false
-	player.add_child(shield_dome)
+	# 비행기 앞 초승달 얇은 막: 적 탄을 대신 맞고 차지 소모 (충돌 반경은 그대로)
+	shield_mesh = MeshInstance3D.new()
+	shield_mesh.mesh = _crescent_mesh(SHIELD_R, SHIELD_R - 8.0, 115.0, 425.0)
+	var mat := _neon_trans(Color(0.3, 0.9, 1), 0.35)
+	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	shield_mesh.material_override = mat
+	shield_mesh.position = Vector3(0, 2, -20)
+	shield_mesh.visible = false
+	player.add_child(shield_mesh)
+
+
+func _crescent_mesh(r_out: float, r_in: float, deg_from: float, deg_to: float) -> ArrayMesh:
+	# XY 평면 고리 부채꼴 (위쪽이 트인 초승달). 카메라도 정면 위쪽에서 보므로 잘 보임.
+	var steps := 40
+	var verts := PackedVector3Array()
+	var normals := PackedVector3Array()
+	var idx := PackedInt32Array()
+	for i in range(steps + 1):
+		var a := deg_to_rad(lerpf(deg_from, deg_to, float(i) / float(steps)))
+		var c := cos(a)
+		var s := sin(a)
+		verts.append(Vector3(c * r_out, s * r_out, 0))
+		verts.append(Vector3(c * r_in, s * r_in, 0))
+		normals.append(Vector3(0, 0, 1))
+		normals.append(Vector3(0, 0, 1))
+		if i < steps:
+			var b := i * 2
+			idx.append_array([b, b + 1, b + 2, b + 1, b + 3, b + 2])
+	var arr := []
+	arr.resize(Mesh.ARRAY_MAX)
+	arr[Mesh.ARRAY_VERTEX] = verts
+	arr[Mesh.ARRAY_NORMAL] = normals
+	arr[Mesh.ARRAY_INDEX] = idx
+	var m := ArrayMesh.new()
+	m.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)
+	return m
 
 
 func _update_shield() -> void:
-	if shield_dome and is_instance_valid(shield_dome):
-		shield_dome.visible = shield > 0
+	if shield_mesh and is_instance_valid(shield_mesh):
+		shield_mesh.visible = shield > 0
 	_refresh_hud()
 
 
