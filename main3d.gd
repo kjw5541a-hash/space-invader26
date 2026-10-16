@@ -151,6 +151,11 @@ var skill_btns: Array = []
 var started := false
 var title_layer: CanvasLayer = null
 var title_hint: Label = null
+var flyoff := false
+var flyoff_t := 0.0
+var enemies_ready := true
+var gameover_cd := -1.0
+var boom_orbs: Array = []
 var ui_layer: CanvasLayer = null
 var popups: Array = []
 var muzzles: Array = []
@@ -746,6 +751,13 @@ func next_wave() -> void:
 	_refresh_hud()
 	enemy_dir = 1.0
 	drop_cd = 0.0
+	flyoff = false
+	flyoff_t = 0.0
+	enemies_ready = false
+	if player:
+		player.position = Vector3(0, 0, PLAYER_Z)
+		if player_alive:
+			player.visible = true
 	spiral_on = false
 	wall_on = false
 	snipe_on = false
@@ -771,6 +783,38 @@ func _mk_enemy_root(lx: float, lz: float) -> Node3D:
 	add_child(e)
 	enemies.append(e)
 	return e
+
+
+func _send_from(e: Node3D, entry: Vector3, delay: float, speed: float) -> void:
+	e.set_meta("dtarget", Vector3(e.position.x, 0, e.position.z))
+	e.set_meta("dspeed", speed)
+	e.set_meta("ddelay", delay)
+	e.position = entry
+
+
+func _deploy_tick(delta: float) -> void:
+	var all := true
+	for e in enemies:
+		if not is_instance_valid(e):
+			continue
+		var en: Node3D = e
+		if not en.has_meta("dtarget"):
+			continue
+		if float(en.get_meta("ddelay")) > 0.0:
+			en.set_meta("ddelay", float(en.get_meta("ddelay")) - delta)
+			all = false
+			continue
+		var tgt: Vector3 = en.get_meta("dtarget")
+		var d := tgt - en.position
+		d.y = 0.0
+		var step: float = float(en.get_meta("dspeed")) * delta
+		if d.length() <= maxf(6.0, step):
+			en.position = Vector3(tgt.x, 0, tgt.z)
+		else:
+			en.position += d.normalized() * step
+			all = false
+	if all:
+		enemies_ready = true
 
 
 func _spawn_formation() -> void:
@@ -803,6 +847,14 @@ func _spawn_formation() -> void:
 				kind = "weaver"
 			# 상단부터 빽빽하게: 6행이어도 맨 아랫줄이 z=-60 위로 유지
 			var e := _mk_enemy_root(lx, -280.0 + r * 44.0)
+			# 등장 연출: 좌/우/후방에서 날아와 배치
+			var slot_i := r * cols + c
+			if slot_i % 3 == 0:
+				_send_from(e, Vector3(-330.0, 0, -280.0 + r * 44.0), r * 0.12 + randf() * 0.2, 430.0)
+			elif slot_i % 3 == 1:
+				_send_from(e, Vector3(330.0, 0, -280.0 + r * 44.0), r * 0.12 + randf() * 0.2, 430.0)
+			else:
+				_send_from(e, Vector3(randf_range(-200.0, 200.0), 0, 430.0), r * 0.12 + randf() * 0.2, 460.0)
 			if kind == "gunner":
 				e.add_child(_ship("res://assets/kenney/ships/craft_miner.obj", 15.0))
 				_beacon(e, m_e2, m_e2_glow, 13.0, 16.0)
@@ -866,6 +918,7 @@ func _spawn_boss() -> void:
 	b.set_meta("spawn_total", 0.4)
 	add_child(b)
 	enemies.append(b)
+	_send_from(b, Vector3(0, 0, -460.0), 0.3, 240.0)
 	boss = b
 	boss_pattern = -1
 	boss_ptime = 2.0
@@ -1128,8 +1181,15 @@ func _damage_enemy(e: Node3D, dmg: float = 1.0) -> void:
 			if boss_bar:
 				boss_bar.visible = false
 		e.queue_free()
-		if enemies.is_empty() and not game_over and next_wave_cd < 0.0 and not skill_open:
-			_open_skill_select()
+		if enemies.is_empty() and not game_over and next_wave_cd < 0.0 and not skill_open and not flyoff:
+			# 잔탄 정리 후 전진 이탈 → 스킬 선택
+			for b in e_bullets:
+				if is_instance_valid(b):
+					(b as Node3D).queue_free()
+			e_bullets.clear()
+			flyoff = true
+			flyoff_t = 0.0
+			invincible_t = maxf(invincible_t, 1.5)
 	else:
 		if e.get_meta("kind") == "boss":
 			# 연타 금속음을 둔탁한 쿵으로 교체 + 0.12초 쿨다운
@@ -1153,9 +1213,32 @@ func _hit_player() -> void:
 	_add_shake(8.0)
 	_do_flash(Color(1, 0.2, 0.3), 0.35)
 	if hp <= 0:
-		_do_game_over()
+		# 록맨식 사망: 기체 소멸 → 청백 오브 산란 → 1.2초 뒤 GAME OVER
+		player_alive = false
+		if player:
+			_rockman_boom(player.position)
+			player.visible = false
+		gameover_cd = 1.2
 	else:
 		invincible_t = invincible_dur
+
+
+func _rockman_boom(p: Vector3) -> void:
+	_do_flash(Color(1, 1, 1), 0.3)
+	_sfx("bossdown")
+	for k in range(8):
+		var a := TAU * float(k) / 8.0 + randf_range(-0.2, 0.2)
+		var sp := randf_range(140.0, 260.0)
+		var orb := Node3D.new()
+		orb.position = p
+		orb.add_child(_ball(9.0, m_bullet_p_glow))
+		orb.add_child(_ball(4.5, m_bullet_core))
+		add_child(orb)
+		boom_orbs.append({
+			"n": orb,
+			"vel": Vector3(cos(a) * sp, randf_range(120.0, 240.0), sin(a) * sp),
+			"life": randf_range(0.9, 1.2),
+		})
 
 
 func _do_game_over() -> void:
@@ -1296,6 +1379,25 @@ func _physics_process(delta: float) -> void:
 		var k := clampf(float(sh["life"]) * 2.2, 0.05, 1.0)
 		sn.scale = Vector3(k, k, k)
 
+	# 록맨식 사망 오브 (중력 낙하)
+	for i in range(boom_orbs.size() - 1, -1, -1):
+		var bo: Dictionary = boom_orbs[i]
+		if not is_instance_valid(bo["n"]):
+			boom_orbs.remove_at(i)
+			continue
+		bo["life"] = float(bo["life"]) - delta
+		if float(bo["life"]) <= 0.0:
+			(bo["n"] as Node3D).queue_free()
+			boom_orbs.remove_at(i)
+			continue
+		var bv3: Vector3 = bo["vel"]
+		bv3.y -= 520.0 * delta
+		bo["vel"] = bv3
+		var bon: Node3D = bo["n"]
+		bon.position += bv3 * delta
+		var bk := clampf(float(bo["life"]) * 1.5, 0.1, 1.0)
+		bon.scale = Vector3(bk, bk, bk)
+
 	# 카메라 흔들림
 	if cam:
 		if shake > 0.05:
@@ -1310,6 +1412,27 @@ func _physics_process(delta: float) -> void:
 		return
 
 	if game_over:
+		return
+
+	# 사망 연출 후 GAME OVER 표시
+	if gameover_cd > 0.0:
+		gameover_cd -= delta
+		if gameover_cd <= 0.0:
+			gameover_cd = -1.0
+			_do_game_over()
+
+	# 클리어 후 전진 이탈 → 화면 밖에서 스킬 선택
+	if flyoff:
+		flyoff_t += delta
+		if player:
+			player.position.z -= (420.0 + flyoff_t * 500.0) * delta
+			player.position.x = lerpf(player.position.x, 0.0, minf(1.0, delta * 3.0))
+		_move_bullets(delta)
+		if flyoff_t >= 1.3:
+			flyoff = false
+			if player:
+				player.visible = false
+			_open_skill_select()
 		return
 
 	if invincible_t > 0.0:
@@ -1350,8 +1473,8 @@ func _physics_process(delta: float) -> void:
 					var fs := 0.8 + 0.35 * sin(elapsed * 26.0 + fi * 2.1)
 					(fl[fi] as MeshInstance3D).scale = Vector3(1, 1, fs)
 
-	# 자동 발사
-	if player_alive and player and not skill_open:
+	# 자동 발사 (배치 완료 후)
+	if player_alive and player and not skill_open and not flyoff and enemies_ready:
 		p_fire_cd -= delta
 		var interval := player_fire_interval
 		if boss != null and is_instance_valid(boss):
@@ -1374,8 +1497,10 @@ func _physics_process(delta: float) -> void:
 				_spawn_aoe_bullet(player.position.x, player.position.z - 24)
 				_sfx("boss_shoot")
 
-	# 적 발사 / 보스 스케줄
-	if boss == null or not is_instance_valid(boss):
+	# 적 발사 / 보스 스케줄 (배치 완료 후)
+	if not enemies_ready:
+		_deploy_tick(delta)
+	elif boss == null or not is_instance_valid(boss):
 		_fire_tick_accum(delta)
 	else:
 		# 랜덤 기동: 1.6~3.2초마다 새 목표 x를 잡고 웨이브 비례 속도로 접근 + 상하 bob
@@ -1407,8 +1532,8 @@ func _physics_process(delta: float) -> void:
 			var r2 := float(boss.get_meta("hp")) / float(maxf(1.0, float(boss.get_meta("max_hp"))))
 			boss_bar.value = r2 * 100.0
 
-	# 일반 적 이동 (벽 반전 + 낙하 쿨다운)
-	if (boss == null or not is_instance_valid(boss)) and not enemies.is_empty():
+	# 일반 적 이동 (벽 반전 + 낙하 쿨다운, 배치 완료 후)
+	if enemies_ready and (boss == null or not is_instance_valid(boss)) and not enemies.is_empty():
 		drop_cd -= delta
 		var min_x := 1e9
 		var max_x := -1e9
