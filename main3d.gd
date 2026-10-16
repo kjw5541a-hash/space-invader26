@@ -39,6 +39,7 @@ var enemy_dir := 1.0
 var enemy_speed := 42.0
 var drop_cd := 0.0
 var fire_cd := 1.0
+var p_fire_cd := 0.0
 var fire_interval := 0.9
 var bullet_speed := 260.0
 
@@ -1328,12 +1329,12 @@ func _physics_process(delta: float) -> void:
 
 	# 자동 발사
 	if player_alive and player and not skill_open:
-		fire_cd -= delta
+		p_fire_cd -= delta
 		var interval := player_fire_interval
 		if boss != null and is_instance_valid(boss):
 			interval = player_fire_interval * 0.86
-		if fire_cd <= 0.0:
-			fire_cd = interval
+		if p_fire_cd <= 0.0:
+			p_fire_cd = interval
 			# 발사체 수 스킬: 1발 기본, 같은 스킬 취득마다 +1
 			var px := player.position.x
 			var pz := player.position.z - 24
