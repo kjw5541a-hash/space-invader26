@@ -16,6 +16,7 @@ const CAM_LOOK := Vector3(0, 0, -20)
 const TOUCH_SPEED_FACTOR := 0.55
 # iOS Safari 하단 주소창+홈 인디케이터 가림 방지 여백
 const BOTTOM_SAFE := 120.0
+const BTN_H := 150.0
 
 var score := 0
 var wave := 0
@@ -446,24 +447,24 @@ func _build_ui() -> void:
 
 	# 하단 컨트롤러: 높이 유지 + 하단 앵커로 화면 꽉 채움 (Safari 가림 방지 여백)
 	# 앵커+오프셋 직접 지정 (position 세터의 앵커 해석 모호성 회피)
-	var left_btn := _mk_button(layer, "◀", Vector2.ZERO, Color(0, 1, 1), Vector2(228, 104))
+	var left_btn := _mk_button(layer, "◀", Vector2.ZERO, Color(0, 1, 1), Vector2(228, BTN_H))
 	left_btn.anchor_left = 0.0
 	left_btn.anchor_right = 0.0
 	left_btn.anchor_top = 1.0
 	left_btn.anchor_bottom = 1.0
 	left_btn.offset_left = 8.0
-	left_btn.offset_top = -104.0 - BOTTOM_SAFE
+	left_btn.offset_top = -BTN_H - BOTTOM_SAFE
 	left_btn.offset_right = 236.0
 	left_btn.offset_bottom = -BOTTOM_SAFE
 	left_btn.button_down.connect(func() -> void: touch_left = true)
 	left_btn.button_up.connect(func() -> void: touch_left = false)
-	var right_btn := _mk_button(layer, "▶", Vector2.ZERO, Color(1, 0.3, 1), Vector2(228, 104))
+	var right_btn := _mk_button(layer, "▶", Vector2.ZERO, Color(1, 0.3, 1), Vector2(228, BTN_H))
 	right_btn.anchor_left = 1.0
 	right_btn.anchor_right = 1.0
 	right_btn.anchor_top = 1.0
 	right_btn.anchor_bottom = 1.0
 	right_btn.offset_left = -236.0
-	right_btn.offset_top = -104.0 - BOTTOM_SAFE
+	right_btn.offset_top = -BTN_H - BOTTOM_SAFE
 	right_btn.offset_right = -8.0
 	right_btn.offset_bottom = -BOTTOM_SAFE
 	right_btn.button_down.connect(func() -> void: touch_right = true)
@@ -496,6 +497,7 @@ func _mk_label(layer: CanvasLayer, pos: Vector2, fs: int, col: Color) -> Label:
 
 
 func _mk_button(layer: CanvasLayer, txt: String, pos: Vector2, col: Color, sz: Vector2 = Vector2(104, 104)) -> Button:
+	# 투명 컨트롤러: 평소엔 희미하게, 눌렀을 때만 은은하게 불이 들어옴
 	var b := Button.new()
 	if ui_font:
 		b.add_theme_font_override("font", ui_font)
@@ -504,8 +506,22 @@ func _mk_button(layer: CanvasLayer, txt: String, pos: Vector2, col: Color, sz: V
 	b.size = sz
 	b.focus_mode = Control.FOCUS_NONE
 	b.add_theme_font_size_override("font_size", 42)
-	b.add_theme_color_override("font_color", col)
-	b.modulate = Color(1, 1, 1, 0.9)
+	b.add_theme_color_override("font_color", Color(col.r, col.g, col.b, 0.6))
+	for state in ["normal", "hover", "disabled"]:
+		var sb := StyleBoxFlat.new()
+		sb.bg_color = Color(col.r, col.g, col.b, 0.06)
+		sb.border_color = Color(col.r, col.g, col.b, 0.22)
+		sb.set_border_width_all(2)
+		sb.set_corner_radius_all(18)
+		b.add_theme_stylebox_override(state, sb)
+	var pr := StyleBoxFlat.new()
+	pr.bg_color = Color(col.r, col.g, col.b, 0.22)
+	pr.border_color = Color(col.r, col.g, col.b, 0.45)
+	pr.set_border_width_all(2)
+	pr.set_corner_radius_all(18)
+	b.add_theme_stylebox_override("pressed", pr)
+	var fc := StyleBoxEmpty.new()
+	b.add_theme_stylebox_override("focus", fc)
 	layer.add_child(b)
 	return b
 
@@ -755,9 +771,9 @@ func _build_title() -> void:
 	title_hint.anchor_top = 1.0
 	title_hint.anchor_bottom = 1.0
 	title_hint.offset_left = 0.0
-	title_hint.offset_top = -284.0 - BOTTOM_SAFE
+	title_hint.offset_top = -230.0 - BOTTOM_SAFE
 	title_hint.offset_right = 0.0
-	title_hint.offset_bottom = -224.0 - BOTTOM_SAFE
+	title_hint.offset_bottom = -170.0 - BOTTOM_SAFE
 	title_hint.add_theme_font_size_override("font_size", 30)
 	title_hint.add_theme_color_override("font_color", Color(0, 1, 1))
 	title_hint.add_theme_color_override("font_outline_color", Color.BLACK)
