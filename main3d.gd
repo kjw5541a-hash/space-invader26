@@ -150,6 +150,13 @@ var skill_btns: Array = []
 var started := false
 var title_layer: CanvasLayer = null
 var title_hint: Label = null
+var ui_layer: CanvasLayer = null
+var popups: Array = []
+var muzzles: Array = []
+var hit_flash: ColorRect = null
+var flash_a := 0.0
+var flash_col := Color(1, 0.2, 0.3)
+var lowhp_rect: ColorRect = null
 
 var star_mm: MultiMesh = null
 var star_data: Array = []
@@ -391,6 +398,7 @@ func _build_ui() -> void:
 	ui_font = load("res://fonts/NanumGothic-Bold.ttf") as Font
 	var layer := CanvasLayer.new()
 	add_child(layer)
+	ui_layer = layer
 
 	score_label = _mk_label(layer, Vector2(12, 10), 20, Color(0, 1, 1))
 	hp_bar = ProgressBar.new()
@@ -434,6 +442,18 @@ func _build_ui() -> void:
 	var right_btn := _mk_button(layer, "▶", Vector2(244, 590), Color(1, 0.3, 1), Vector2(228, 104))
 	right_btn.button_down.connect(func() -> void: touch_right = true)
 	right_btn.button_up.connect(func() -> void: touch_right = false)
+
+	hit_flash = ColorRect.new()
+	hit_flash.set_anchors_preset(Control.PRESET_FULL_RECT)
+	hit_flash.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hit_flash.color = Color(1, 0.2, 0.3, 0.0)
+	layer.add_child(hit_flash)
+	lowhp_rect = ColorRect.new()
+	lowhp_rect.set_anchors_preset(Control.PRESET_FULL_RECT)
+	lowhp_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	lowhp_rect.color = Color(0.6, 0.0, 0.05, 0.0)
+	lowhp_rect.visible = false
+	layer.add_child(lowhp_rect)
 
 	_refresh_hud()
 
@@ -722,6 +742,8 @@ func _mk_enemy_root(lx: float, lz: float) -> Node3D:
 	var e := Node3D.new()
 	e.position = Vector3(lx, 0, lz)
 	e.set_meta("flash", 0.0)
+	e.set_meta("spawn", 0.25)
+	e.set_meta("spawn_total", 0.25)
 	add_child(e)
 	enemies.append(e)
 	return e
@@ -816,6 +838,8 @@ func _spawn_boss() -> void:
 	b.set_meta("score_v", 500)
 	b.set_meta("kind", "boss")
 	b.set_meta("flash", 0.0)
+	b.set_meta("spawn", 0.4)
+	b.set_meta("spawn_total", 0.4)
 	add_child(b)
 	enemies.append(b)
 	boss = b
@@ -1057,8 +1081,12 @@ func _damage_enemy(e: Node3D, dmg: float = 1.0) -> void:
 	var boom_n := 14 if (k == "boss" or k == "tank") else (10 if k == "gunner" else 7)
 	_explode(ep, Color(1, 0.13, 0.33) if k == "boss" else Color(1, 0.93, 0.2), boom_n)
 	if ehp <= 0:
-		score += int(e.get_meta("score_v"))
+		var sv := int(e.get_meta("score_v"))
+		score += sv
 		_refresh_hud()
+		_popup(ep, "+%d" % sv)
+		if e.get_meta("kind") == "boss":
+			_do_flash(Color(1, 1, 1), 0.25)
 		_explode(ep, Color(1, 0.5, 0.1), 10)
 		if e.get_meta("kind") == "boss":
 			_sfx("bossdown")
@@ -1099,6 +1127,7 @@ func _hit_player() -> void:
 	_explode(Vector2(player.position.x, player.position.z), Color(0, 1, 1), 14)
 	_sfx("hit")
 	_add_shake(8.0)
+	_do_flash(Color(1, 0.2, 0.3), 0.35)
 	if hp <= 0:
 		_do_game_over()
 	else:
@@ -1140,6 +1169,40 @@ func _explode(p: Vector2, color: Color, n: int) -> void:
 			"vel": Vector3(randf_range(-170, 170), randf_range(30, 220), randf_range(-170, 170)),
 			"life": randf_range(0.3, 0.55),
 		})
+
+
+# ---------- 연출 (팝업/머즐/플래시) ----------
+
+func _popup(world_p: Vector2, txt: String, col: Color = Color(1, 0.93, 0.2)) -> void:
+	if ui_layer == null or cam == null:
+		return
+	var sp := cam.unproject_position(Vector3(world_p.x, 0, world_p.y))
+	var l := Label.new()
+	if ui_font:
+		l.add_theme_font_override("font", ui_font)
+	l.text = txt
+	l.position = sp + Vector2(-30, -30)
+	l.size = Vector2(120, 30)
+	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	l.add_theme_font_size_override("font_size", 20)
+	l.add_theme_color_override("font_color", col)
+	l.add_theme_color_override("font_outline_color", Color.BLACK)
+	l.add_theme_constant_override("outline_size", 6)
+	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	ui_layer.add_child(l)
+	popups.append({"l": l, "life": 0.7})
+
+
+func _muzzle(x: float, z: float) -> void:
+	var f := _ball(3.5, m_bullet_hot)
+	f.position = Vector3(x, 1, z)
+	add_child(f)
+	muzzles.append({"n": f, "life": 0.06})
+
+
+func _do_flash(col: Color, a: float) -> void:
+	flash_col = col
+	flash_a = a
 
 
 func _input(event: InputEvent) -> void:
@@ -1277,6 +1340,7 @@ func _physics_process(delta: float) -> void:
 			for i in range(proj_count):
 				var t := float(i) - float(proj_count - 1) / 2.0
 				_spawn_p_bullet(px + t * 12.0, pz, Vector2(t * 55.0, -p_bullet_speed))
+				_muzzle(px + t * 12.0, pz - 20.0)
 			_sfx("shoot")
 		# 폭렬탄: 스택당 쿨다운 감소, 범위 폭발 미사일 발사
 		if aoe_level > 0:
@@ -1351,13 +1415,61 @@ func _physics_process(delta: float) -> void:
 					_hit_player()
 					break
 
-	# 피격 스케일 플래시 복원
+	# 등장 스케일-인 + 피격 플래시
 	for e in enemies:
-		if is_instance_valid(e) and float((e as Node3D).get_meta("flash")) > 0.0:
-			var en2: Node3D = e
+		if not is_instance_valid(e):
+			continue
+		var en2: Node3D = e
+		var sc := 1.0
+		if en2.has_meta("spawn") and float(en2.get_meta("spawn")) > 0.0:
+			en2.set_meta("spawn", float(en2.get_meta("spawn")) - delta)
+			var total := 0.25
+			if en2.has_meta("spawn_total"):
+				total = float(en2.get_meta("spawn_total"))
+			var k := clampf(1.0 - float(en2.get_meta("spawn")) / total, 0.0, 1.0)
+			sc = lerpf(0.2, 1.0, k * k)
+		if float(en2.get_meta("flash")) > 0.0:
 			en2.set_meta("flash", float(en2.get_meta("flash")) - delta)
-			var on := float(en2.get_meta("flash")) > 0.0
-			en2.scale = Vector3(1.18, 1.18, 1.18) if on else Vector3.ONE
+			if float(en2.get_meta("flash")) > 0.0:
+				sc *= 1.18
+		en2.scale = Vector3(sc, sc, sc)
+
+	# 팝업/머즐/플래시 업데이트
+	for i in range(popups.size() - 1, -1, -1):
+		var pu: Dictionary = popups[i]
+		if not is_instance_valid(pu["l"]):
+			popups.remove_at(i)
+			continue
+		pu["life"] = float(pu["life"]) - delta
+		if float(pu["life"]) <= 0.0:
+			(pu["l"] as Label).queue_free()
+			popups.remove_at(i)
+			continue
+		var pl: Label = pu["l"]
+		pl.position.y -= 44.0 * delta
+		pl.modulate.a = clampf(float(pu["life"]) / 0.7, 0.0, 1.0)
+	for i in range(muzzles.size() - 1, -1, -1):
+		var mz: Dictionary = muzzles[i]
+		if not is_instance_valid(mz["n"]):
+			muzzles.remove_at(i)
+			continue
+		mz["life"] = float(mz["life"]) - delta
+		if float(mz["life"]) <= 0.0:
+			(mz["n"] as MeshInstance3D).queue_free()
+			muzzles.remove_at(i)
+			continue
+		var mzn: MeshInstance3D = mz["n"]
+		var mk := clampf(float(mz["life"]) / 0.06, 0.05, 1.0)
+		mzn.scale = Vector3(mk, mk, mk)
+	if flash_a > 0.0 and hit_flash:
+		flash_a = maxf(0.0, flash_a - delta * 1.8)
+		hit_flash.color = Color(flash_col.r, flash_col.g, flash_col.b, flash_a)
+	if lowhp_rect:
+		if started and not game_over and hp == 1:
+			lowhp_rect.visible = true
+			lowhp_rect.color = Color(0.6, 0.0, 0.05, 0.10 + 0.06 * sin(elapsed * 5.0))
+		else:
+			lowhp_rect.visible = false
 
 	_move_bullets(delta)
 	_check_collisions()
