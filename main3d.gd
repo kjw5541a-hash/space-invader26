@@ -854,7 +854,7 @@ func _spawn_formation() -> void:
 			elif slot_i % 3 == 1:
 				_send_from(e, Vector3(330.0, 0, -280.0 + r * 44.0), r * 0.12 + randf() * 0.2, 430.0)
 			else:
-				_send_from(e, Vector3(randf_range(-200.0, 200.0), 0, 430.0), r * 0.12 + randf() * 0.2, 460.0)
+				_send_from(e, Vector3(randf_range(-200.0, 200.0), 0, -460.0), r * 0.12 + randf() * 0.2, 460.0)
 			if kind == "gunner":
 				e.add_child(_ship("res://assets/kenney/ships/craft_miner.obj", 15.0))
 				_beacon(e, m_e2, m_e2_glow, 13.0, 16.0)
@@ -1718,6 +1718,9 @@ func _check_collisions() -> void:
 				_update_shield()
 				if shield <= 0:
 					break
+	# 배치 중에는 피격 없음
+	if not enemies_ready:
+		return
 	if player_alive and player and invincible_t <= 0.0:
 		var pp := Vector2(player.position.x, player.position.z)
 		for bi2 in range(e_bullets.size() - 1, -1, -1):
