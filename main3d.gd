@@ -297,7 +297,7 @@ func _build_starfield() -> void:
 		star_data.append({
 			"x": randf_range(-260, 260),
 			"y": randf_range(-40, 220),
-			"z": randf_range(-380, 380),
+			"z": randf_range(-520, 520),
 			"sp": randf_range(100, 260),
 		})
 		_update_star(i)
@@ -442,10 +442,15 @@ func _build_ui() -> void:
 	msg_label.add_theme_constant_override("outline_size", 8)
 	layer.add_child(msg_label)
 
-	var left_btn := _mk_button(layer, "◀", Vector2(8, 590), Color(0, 1, 1), Vector2(228, 104))
+	# 하단 컨트롤러: 높이 유지 + 하단 앵커로 화면 꽉 채움 (여백 8px)
+	var left_btn := _mk_button(layer, "◀", Vector2.ZERO, Color(0, 1, 1), Vector2(228, 104))
+	left_btn.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
+	left_btn.position = Vector2(8, -112)
 	left_btn.button_down.connect(func() -> void: touch_left = true)
 	left_btn.button_up.connect(func() -> void: touch_left = false)
-	var right_btn := _mk_button(layer, "▶", Vector2(244, 590), Color(1, 0.3, 1), Vector2(228, 104))
+	var right_btn := _mk_button(layer, "▶", Vector2.ZERO, Color(1, 0.3, 1), Vector2(228, 104))
+	right_btn.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	right_btn.position = Vector2(-236, -112)
 	right_btn.button_down.connect(func() -> void: touch_right = true)
 	right_btn.button_up.connect(func() -> void: touch_right = false)
 
@@ -571,8 +576,12 @@ func _open_skill_select() -> void:
 		skill_title.text = "BOSS 격파! 스킬 선택"
 	else:
 		skill_title.text = "WAVE %d 클리어! 스킬 선택" % wave
+	# 실제 화면 높이 기준 중앙 배치 (expand로 길어진 화면 대응)
+	var vh := get_viewport().get_visible_rect().size.y
+	skill_title.position = Vector2(40, vh * 0.5 - 150)
 	for i in range(skill_btns.size()):
 		var b: Button = skill_btns[i]
+		b.position = Vector2(60, vh * 0.5 - 100 + i * 84)
 		if i < skill_opts.size():
 			var o: Dictionary = skill_opts[i]
 			b.visible = true
@@ -725,8 +734,11 @@ func _build_title() -> void:
 		title_hint.add_theme_font_override("font", ui_font)
 	title_hint.text = "터치하여 시작"
 	title_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title_hint.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
-	title_hint.position = Vector2(40, 560)
+	title_hint.anchor_left = 0.5
+	title_hint.anchor_right = 0.5
+	title_hint.anchor_top = 1.0
+	title_hint.anchor_bottom = 1.0
+	title_hint.position = Vector2(-200, -180)
 	title_hint.size = Vector2(400, 60)
 	title_hint.add_theme_font_size_override("font_size", 30)
 	title_hint.add_theme_color_override("font_color", Color(0, 1, 1))
@@ -1358,8 +1370,8 @@ func _physics_process(delta: float) -> void:
 	for i in range(STAR_N):
 		var s: Dictionary = star_data[i]
 		s["z"] = float(s["z"]) + float(s["sp"]) * delta
-		if float(s["z"]) > 380.0:
-			s["z"] = -380.0
+		if float(s["z"]) > 520.0:
+			s["z"] = -520.0
 			s["x"] = randf_range(-260, 260)
 		_update_star(i)
 
@@ -1647,7 +1659,7 @@ func _move_bullets(delta: float) -> void:
 		var v: Vector2 = bn.get_meta("vel")
 		bn.position.x += v.x * delta
 		bn.position.z += v.y * delta
-		if bn.position.z < -390 or bn.position.z > 390 or bn.position.x < -270 or bn.position.x > 270:
+		if bn.position.z < -520 or bn.position.z > 520 or bn.position.x < -270 or bn.position.x > 270:
 			bn.queue_free()
 			p_bullets.remove_at(i)
 	for i in range(e_bullets.size() - 1, -1, -1):
@@ -1659,7 +1671,7 @@ func _move_bullets(delta: float) -> void:
 		var v2: Vector2 = bn2.get_meta("vel")
 		bn2.position.x += v2.x * delta
 		bn2.position.z += v2.y * delta
-		if bn2.position.z < -390 or bn2.position.z > 390 or bn2.position.x < -270 or bn2.position.x > 270:
+		if bn2.position.z < -520 or bn2.position.z > 520 or bn2.position.x < -270 or bn2.position.x > 270:
 			bn2.queue_free()
 			e_bullets.remove_at(i)
 
