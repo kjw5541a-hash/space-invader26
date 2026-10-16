@@ -14,6 +14,8 @@ const INVADE_Z := 240.0
 const CAM_POS := Vector3(0, 470, 470)
 const CAM_LOOK := Vector3(0, 0, -20)
 const TOUCH_SPEED_FACTOR := 0.55
+# iOS Safari 하단 주소창+홈 인디케이터 가림 방지 여백
+const BOTTOM_SAFE := 120.0
 
 var score := 0
 var wave := 0
@@ -442,15 +444,28 @@ func _build_ui() -> void:
 	msg_label.add_theme_constant_override("outline_size", 8)
 	layer.add_child(msg_label)
 
-	# 하단 컨트롤러: 높이 유지 + 하단 앵커로 화면 꽉 채움 (여백 8px)
+	# 하단 컨트롤러: 높이 유지 + 하단 앵커로 화면 꽉 채움 (Safari 가림 방지 여백)
+	# 앵커+오프셋 직접 지정 (position 세터의 앵커 해석 모호성 회피)
 	var left_btn := _mk_button(layer, "◀", Vector2.ZERO, Color(0, 1, 1), Vector2(228, 104))
-	left_btn.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
-	left_btn.position = Vector2(8, -112)
+	left_btn.anchor_left = 0.0
+	left_btn.anchor_right = 0.0
+	left_btn.anchor_top = 1.0
+	left_btn.anchor_bottom = 1.0
+	left_btn.offset_left = 8.0
+	left_btn.offset_top = -104.0 - BOTTOM_SAFE
+	left_btn.offset_right = 236.0
+	left_btn.offset_bottom = -BOTTOM_SAFE
 	left_btn.button_down.connect(func() -> void: touch_left = true)
 	left_btn.button_up.connect(func() -> void: touch_left = false)
 	var right_btn := _mk_button(layer, "▶", Vector2.ZERO, Color(1, 0.3, 1), Vector2(228, 104))
-	right_btn.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
-	right_btn.position = Vector2(-236, -112)
+	right_btn.anchor_left = 1.0
+	right_btn.anchor_right = 1.0
+	right_btn.anchor_top = 1.0
+	right_btn.anchor_bottom = 1.0
+	right_btn.offset_left = -236.0
+	right_btn.offset_top = -104.0 - BOTTOM_SAFE
+	right_btn.offset_right = -8.0
+	right_btn.offset_bottom = -BOTTOM_SAFE
 	right_btn.button_down.connect(func() -> void: touch_right = true)
 	right_btn.button_up.connect(func() -> void: touch_right = false)
 
@@ -734,12 +749,15 @@ func _build_title() -> void:
 		title_hint.add_theme_font_override("font", ui_font)
 	title_hint.text = "터치하여 시작"
 	title_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title_hint.anchor_left = 0.5
-	title_hint.anchor_right = 0.5
+	# 전폭 + 중앙 정렬 텍스트 (앵커 해석 모호성 회피)
+	title_hint.anchor_left = 0.0
+	title_hint.anchor_right = 1.0
 	title_hint.anchor_top = 1.0
 	title_hint.anchor_bottom = 1.0
-	title_hint.position = Vector2(-200, -180)
-	title_hint.size = Vector2(400, 60)
+	title_hint.offset_left = 0.0
+	title_hint.offset_top = -284.0 - BOTTOM_SAFE
+	title_hint.offset_right = 0.0
+	title_hint.offset_bottom = -224.0 - BOTTOM_SAFE
 	title_hint.add_theme_font_size_override("font_size", 30)
 	title_hint.add_theme_color_override("font_color", Color(0, 1, 1))
 	title_hint.add_theme_color_override("font_outline_color", Color.BLACK)
